@@ -1,27 +1,24 @@
-# Use slim Python image instead of full Playwright image
+# Use slim Python image
 FROM python:3.9-slim
 
 # Set environment variables
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-ENV DISPLAY=:99
 
-# Install minimal dependencies
+# Install minimal dependencies (including xauth)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     wget \
+    xauth \
     libgtk-3-0 \
-    libnotify-dev \
-    libgconf-2-4 \
     libnss3 \
     libxss1 \
     libasound2 \
-    libxtst6 \
-    xvfb && \
+    libxtst6 && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install Python dependencies first for better caching
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && \
     playwright install chromium && \
@@ -33,5 +30,5 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p /app/downloads /app/filesdownloaded
 
-# Start X virtual framebuffer and run bot
-CMD xvfb-run python pass_bot.py
+# Run bot directly (no xvfb needed with headless mode)
+CMD ["python", "pass_bot.py"]
