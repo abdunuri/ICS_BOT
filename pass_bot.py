@@ -992,10 +992,13 @@ async def new_appointment(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         page = active_sessions[chat_id]['page']
         active_sessions[chat_id]['last_active'] = datetime.now()
         
-
-
-        await page.wait_for_load_state("load")
-        await page.click(".card--teal.flex.flex--column")
+        await page.wait_for_load_state('networkidle')
+        await page.wait_for_selector(".card--teal.flex.flex--column", state='visible', timeout=60000)
+        
+        # More reliable click method
+        await page.evaluate('''() => {
+            document.querySelector('.card--teal.flex.flex--column').click();
+        }''')
         
         await message.reply_text("✅ Ready! Let's begin your appointment booking.")
         return await ask_region(update, context)
