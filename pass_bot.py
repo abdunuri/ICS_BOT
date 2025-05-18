@@ -864,7 +864,7 @@ async def new_or_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     page = active_sessions[chat_id]['page']
     await page.click('a[href="/Status"]')
     await page.click('a[href="/request-appointment"]')
-    await page.wait_for_selector("label[for='defaultChecked2']", timeout=10000)
+    await page.wait_for_selector("label[for='defaultChecked2']", timeout=100000)
     await page.click("label[for='defaultChecked2']")
     await page.click(".card--link")
     await message.reply_text(
@@ -957,7 +957,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             ])
         )
 
-        await page.wait_for_selector("label[for='defaultChecked2']", timeout=10000)
+        await page.wait_for_selector("label[for='defaultChecked2']", timeout=100000)
         await page.click("label[for='defaultChecked2']")
         await page.click(".card--link")
         return MAIN_MENU
