@@ -922,9 +922,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage'
     ],
-    timeout=60000
+    timeout=60000,
+    executable_path="/usr/bin/chromium-browser"
 )
-        browser_context = await browser.new_context()
+        browser_context = await browser.new_context(
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36',
+            viewport={'width': 1920, 'height': 1080}
+        )
+        page.set_default_timeout(120000)
+        page.set_default_navigation_timeout(120000)
         page = await browser_context.new_page()
         await page.goto("https://www.ethiopianpassportservices.gov.et/request-appointment", wait_until="domcontentloaded")
         await status_msg.edit_text("⚡Browser launched. Please wait...")
@@ -980,31 +986,44 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await query.edit_message_text(text="❌ Invalid option, please try again.")
 
 async def new_appointment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    message = update.message or update.callback_query.message
-    chat_id = message.chat.id
-    
-    if chat_id not in active_sessions:
-        await message.reply_text("❌ Session expired. Please /start again.")
-        return ConversationHandler.END
-    
     try:
-        context.user_data["dropdown_step"] = 0
+        chat_id = update.effective_chat.id
+        if chat_id not in active_sessions:
+            await update.message.reply_text("❌ Session expired. Please /start again.")
+            return ConversationHandler.END
+
         page = active_sessions[chat_id]['page']
-        active_sessions[chat_id]['last_active'] = datetime.now()
         
-        await page.wait_for_load_state('networkidle')
-        await page.wait_for_selector(".card--teal.flex.flex--column", state='visible', timeout=60000)
+        # Triple-check navigation
+        await page.goto("https://www.ethiopianpassportservices.gov.et/request-appointment", wait_until="networkidle")
         
-        # More reliable click method
-        await page.evaluate('''() => {
-            document.querySelector('.card--teal.flex.flex--column').click();
-        }''')
+        # Nuclear option for clicking
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                await page.wait_for_selector("label[for='defaultChecked2']", state="visible", timeout=30000)
+                await page.evaluate('''() => {
+                    document.querySelector("label[for='defaultChecked2']").click();
+                }''')
+                
+                await page.wait_for_selector(".card--teal", state="visible", timeout=30000)
+                await page.evaluate('''() => {
+                    document.querySelector(".card--teal.flex.flex--column").click();
+                }''')
+                
+                break
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise
+                await page.reload()
+                continue
         
-        await message.reply_text("✅ Ready! Let's begin your appointment booking.")
         return await ask_region(update, context)
+        
     except Exception as e:
-        await message.reply_text(f"❌ Error starting appointment: {str(e)}")
-        return await main_menu_handler(update, context)
+        logger.error(f"Appointment failed for {chat_id}: {str(e)}")
+        await update.message.reply_text("⚠️ Failed to start appointment. Please /start over.")
+        return ConversationHandler.END
 
 
 async def main_passport_status(update: Update, context: ContextTypes.DEFAULT_TYPE, page, application_number) -> str:
@@ -1154,6 +1173,17 @@ if __name__ == "__main__":
     .connect_timeout(300) \
     .pool_timeout(300) \
     .build()
+    # Add at application start
+    application.add_error_handler(async (update, context) => {
+    error = context.error
+    logger.error(f"Global error: {error}", exc_info=error)
+    
+    if update and update.effective_message:
+        await update.effective_message.reply_text(
+            "🔧 System encountered an error. Please /start again.\n"
+            f"Error reference: {hash(str(error))}"
+        )
+})
     #Main menu handler
     main_menu = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
