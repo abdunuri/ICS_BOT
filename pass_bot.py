@@ -913,17 +913,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         playwright = await async_playwright().start()
         await status_msg.edit_text("⚡Launching browser...")
         browser = await playwright.chromium.launch(
-            headless=True,
-            executable_path="/usr/bin/chromium",
-            args=[
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--single-process',
-                '--disable-gpu',
-                '--no-zygote'
-            ]
-        )
+                headless=True,
+                args=[
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--single-process',
+                    '--disable-gpu',
+                    '--no-zygote'
+                ]
+            )
+
         browser_context = await browser.new_context(
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36',
             viewport={'width': 1920, 'height': 1080}

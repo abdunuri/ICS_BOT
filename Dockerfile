@@ -14,6 +14,7 @@ RUN apt-get update && \
 # 2. Configure Playwright to use system Chromium
 ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin/chromium
 RUN pip install playwright && \
+    && pip install -r requirements.txt \
     playwright install-deps
 
 WORKDIR /app
