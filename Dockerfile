@@ -1,7 +1,6 @@
-# Base image
 FROM python:3.9-slim-bullseye
 
-# Install system dependencies for Playwright
+# Install system dependencies required by Playwright
 RUN apt-get update && apt-get install -y \
     wget gnupg ca-certificates \
     libasound2 \
@@ -20,17 +19,22 @@ RUN apt-get update && apt-get install -y \
     libvulkan1 \
     fonts-liberation \
     xdg-utils \
+    libgbm1 \
+    libxshmfence1 \
+    libegl1 \
+    libxext6 \
+    libxfixes3 \
+    libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Set work directory and copy files
+# Set working directory and copy files
 WORKDIR /app
 COPY . .
 
-# Install Python packages (including Playwright)
-RUN pip install --upgrade pip \
-    && pip install playwright \
-    && pip install -r requirements.txt \
-    && playwright install chromium
+# Install Python dependencies
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt && \
+    playwright install chromium
 
 # Run the bot
 CMD ["python", "pass_bot.py"]
