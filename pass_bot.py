@@ -912,7 +912,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     try:
         playwright = await async_playwright().start()
         await status_msg.edit_text("⚡Launching browser...")
-        browser = await playwright.chromium.launch(headless=True,timeout=60000)
+        browser = await playwright.chromium.launch(
+    headless=True,
+    args=[
+        '--disable-gpu',
+        '--single-process',
+        '--no-zygote',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage'
+    ],
+    timeout=60000
+)
         browser_context = await browser.new_context()
         page = await browser_context.new_page()
         await page.goto("https://www.ethiopianpassportservices.gov.et/request-appointment", wait_until="domcontentloaded")
