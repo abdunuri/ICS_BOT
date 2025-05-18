@@ -1135,10 +1135,10 @@ if __name__ == "__main__":
     # Create application
     application = Application.builder() \
     .token("8076860650:AAEprRHsyLQFya7gZjQItySYtEyHHX8UsV8") \
-    .read_timeout(30) \
-    .write_timeout(30) \
-    .connect_timeout(30) \
-    .pool_timeout(30) \
+    .read_timeout(300) \
+    .write_timeout(300) \
+    .connect_timeout(300) \
+    .pool_timeout(300) \
     .build()
     #Main menu handler
     main_menu = ConversationHandler(
