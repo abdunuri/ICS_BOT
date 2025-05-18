@@ -10,6 +10,12 @@ from telegram.ext import (
     ContextTypes,
     filters
 )
+import logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 import re
 import os
 from bs4 import BeautifulSoup
@@ -826,8 +832,7 @@ async def generate_complete_output(update: Update, context: ContextTypes.DEFAULT
 async def save_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE, page, filename="output.pdf", app_number=None) -> int:
     message = update.message or update.callback_query.message
     chat_id = message.chat.id
-    status_msg = await message.reply_text("Saving PDF...")
-    page = active_sessions[chat_id]['page']
+    status_msg = await message.reply_text(" PDF...")
     folder = "filesdownloaded"
     os.makedirs(folder, exist_ok=True)
     # Save the PDF
@@ -925,8 +930,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             )
 
         browser_context = await browser.new_context(
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36',
-            viewport={'width': 1920, 'height': 1080}
         )
         page = await browser_context.new_page()
         page.set_default_timeout(120000)
@@ -986,44 +989,31 @@ async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await query.edit_message_text(text="❌ Invalid option, please try again.")
 
 async def new_appointment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    try:
-        chat_id = update.effective_chat.id
-        if chat_id not in active_sessions:
-            await update.message.reply_text("❌ Session expired. Please /start again.")
-            return ConversationHandler.END
-
-        page = active_sessions[chat_id]['page']
-        
-        # Triple-check navigation
-        await page.goto("https://www.ethiopianpassportservices.gov.et/request-appointment", wait_until="networkidle")
-        
-        # Nuclear option for clicking
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                await page.wait_for_selector("label[for='defaultChecked2']", state="visible", timeout=30000)
-                await page.evaluate('''() => {
-                    document.querySelector("label[for='defaultChecked2']").click();
-                }''')
-                
-                await page.wait_for_selector(".card--teal", state="visible", timeout=30000)
-                await page.evaluate('''() => {
-                    document.querySelector(".card--teal.flex.flex--column").click();
-                }''')
-                
-                break
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise
-                await page.reload()
-                continue
-        
-        return await ask_region(update, context)
-        
-    except Exception as e:
-        logger.error(f"Appointment failed for {chat_id}: {str(e)}")
-        await update.message.reply_text("⚠️ Failed to start appointment. Please /start over.")
+    message = update.message or update.callback_query.message
+    chat_id = message.chat.id
+    
+    if chat_id not in active_sessions:
+        await message.reply_text("❌ Session expired. Please /start again.")
         return ConversationHandler.END
+    
+    try:
+        context.user_data["dropdown_step"] = 0
+        page = active_sessions[chat_id]['page']
+        active_sessions[chat_id]['last_active'] = datetime.now()
+        
+        await page.wait_for_load_state('networkidle')
+        await page.wait_for_selector(".card--teal.flex.flex--column", state='visible', timeout=60000)
+        
+        # More reliable click method
+        await page.evaluate('''() => {
+            document.querySelector('.card--teal.flex.flex--column').click();
+        }''')
+        
+        await message.reply_text("✅ Ready! Let's begin your appointment booking.")
+        return await ask_region(update, context)
+    except Exception as e:
+        await message.reply_text(f"❌ Error starting appointment: {str(e)}")
+        return await main_menu_handler(update, context)
 
 
 async def main_passport_status(update: Update, context: ContextTypes.DEFAULT_TYPE, page, application_number) -> str:
@@ -1167,7 +1157,7 @@ async def cleanup_inactive_sessions():
 if __name__ == "__main__":
     # Create application
     application = Application.builder() \
-    .token("8076860650:AAEprRHsyLQFya7gZjQItySYtEyHHX8UsV8") \
+    .token("7885486896:AAGn1eU4dEjVGo7pUw6roi9k7VrA3ym1GR4") \
     .read_timeout(300) \
     .write_timeout(300) \
     .connect_timeout(300) \
