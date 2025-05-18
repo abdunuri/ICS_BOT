@@ -928,9 +928,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36',
             viewport={'width': 1920, 'height': 1080}
         )
+        page = await browser_context.new_page()
         page.set_default_timeout(120000)
         page.set_default_navigation_timeout(120000)
-        page = await browser_context.new_page()
+        
         await page.goto("https://www.ethiopianpassportservices.gov.et/request-appointment", wait_until="domcontentloaded")
         await status_msg.edit_text("⚡Browser launched. Please wait...")
         await status_msg.edit_text("⚡Loading page...")
