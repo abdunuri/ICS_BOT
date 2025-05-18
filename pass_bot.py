@@ -311,8 +311,7 @@ async def ask_date(update: Update, context: ContextTypes.DEFAULT_TYPE,status_msg
     calendar_visible = await page.locator("div.react-calendar__month-view__days").is_visible()
     if not calendar_visible:
         await message.reply_text("Sorry, we couldn't find any available dates. Please try again later.")
-        await cancel(update, context)
-        return ConversationHandler.END
+        return await new_or_check(update, context)
     await status_msg.edit_text("Calendar is visible, checking for available dates...")
     # Wait for available dates
     while True:
@@ -589,57 +588,10 @@ async def ask_dropdown_option(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     return DROPDOWN_STATE
 
-async def show_occupation_page(update: Update, context: ContextTypes.DEFAULT_TYPE, options: list, page_num: int) -> int:
-    message = update.message or update.callback_query.message
-    start_idx = page_num * OCCUPATION_PAGE_SIZE
-    end_idx = start_idx + OCCUPATION_PAGE_SIZE
-    page_options = options[start_idx:end_idx]
-
-    keyboard = []
-    # Add occupation buttons (2 per row)
-    for i in range(0, len(page_options), 2):
-        row = []
-        if i < len(page_options):
-            value, text = page_options[i]
-            row.append(InlineKeyboardButton(text, callback_data=f"dropdown_4_{value}"))  # 4 is the step for occupation
-        if i+1 < len(page_options):
-            value, text = page_options[i+1]
-            row.append(InlineKeyboardButton(text, callback_data=f"dropdown_4_{value}"))
-        if row:
-            keyboard.append(row)
-
-    # Add pagination controls if needed
-    pagination_row = []
-    if page_num > 0:
-        pagination_row.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"{PAGINATION_PREFIX}occupation_{page_num-1}"))
-    if end_idx < len(options):
-        pagination_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"{PAGINATION_PREFIX}occupation_{page_num+1}"))
-    if pagination_row:
-        keyboard.append(pagination_row)
-
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    if update.callback_query:
-        await update.callback_query.edit_message_text(
-            text="Please select your Occupation:",
-            reply_markup=reply_markup
-        )
-    else:
-        await message.reply_text("Please select your Occupation:", reply_markup=reply_markup)
-    
-    return DROPDOWN_STATE
-
 async def handle_dropdown_response(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     message = update.message or update.callback_query.message
     await query.answer()
-    
-    # Handle pagination
-    if query.data.startswith(PAGINATION_PREFIX):
-        _, category, page_num = query.data.split("_")
-        page_num = int(page_num)
-        options = context.user_data.get("dropdown_options", [])
-        return await show_occupation_page(update, context, options, page_num)
     
     # Handle normal dropdown selection
     _, step, value = query.data.split("_")
@@ -685,7 +637,7 @@ async def fill_personal_form_on_page(update: Update, context: ContextTypes.DEFAU
     #await page.fill('input[name="height"]', user_data["height"])
 
     await page.get_by_role("button", name="Next").click()
-    await page.wait_for_selector('select[name="region"]')
+    await page.wait_for_selector('select[name="region"]', timeout=50000)
     region_select = page.locator("select[name='region']")
     selected_region = context.user_data["selected_region"]
     await region_select.select_option(value=selected_region)
@@ -777,16 +729,25 @@ async def upload_files_to_form(update: Update, context: ContextTypes.DEFAULT_TYP
     message = update.message or update.callback_query.message
     chat_id = message.chat.id
     page = active_sessions[chat_id]['page']
-    await page.set_input_files('input[name="input-0"]', context.user_data["id_doc"])
-    await page.set_input_files('input[name="input-1"]', context.user_data["birth_cert"])
-    await page.get_by_role("button", name="Upload").click()
-    await message.reply_text("📁 Uploaded successfully.")
+    try:
+        await page.set_input_files('input[name="input-0"]', context.user_data["id_doc"])
+        await page.set_input_files('input[name="input-1"]', context.user_data["birth_cert"])
+        await page.get_by_role("button", name="Upload").click()
+        await message.reply_text("📁 Uploaded successfully.")
 
-    await page.click('label[for="defaultUnchecked"]')
-    await page.get_by_role("button", name="Next").click()
+        await page.click('label[for="defaultUnchecked"]')
+        await page.get_by_role("button", name="Next").click()
 
-    # Next step
-    return await ask_payment_method(update, context)
+        # Next step
+        return await ask_payment_method(update, context)
+    finally:
+        # Clean up uploaded files
+        for file_type in ["id_doc", "birth_cert"]:
+            if file_path := context.user_data.get(file_type):
+                try:
+                    os.remove(file_path)
+                except Exception as e:
+                    print(f"Error deleting file {file_path}: {e}")
 
 async def ask_payment_method(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     message = update.message or update.callback_query.message
@@ -853,7 +814,9 @@ async def generate_complete_output(update: Update, context: ContextTypes.DEFAULT
         message_t += f"*{key}:* {value}\n"
 
     await status_msg.edit_text(message_t, parse_mode="Markdown")
-
+    if data.get("Application Number") is None:
+        await message.reply_text("❌ Application Number not found. Please try again.")
+        return await generate_complete_output(update, context)
     # Extract Application Number and use as filename (sanitize it)
     app_number = data.get("Application Number", None).replace(" ", "_")
     filename = f"{app_number}.pdf"
@@ -871,17 +834,27 @@ async def save_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE, page, fil
     pdf_path = os.path.join(folder, filename)
     await page.pdf(path=pdf_path)
     print(f"📄 PDF saved as {pdf_path}")
-    await status_msg.edit_text("📎 Uploading PDF ...")
-    # Send PDF to user
-    with open(pdf_path, "rb") as pdf_file:
-        await message.reply_document(document=pdf_file, filename=filename, caption="📎 Here is your instruction PDF.")
-        result= await main_passport_status(update, context,page,app_number)
-        if result:
-            await message.reply_text(result)
+    try:
+        await status_msg.edit_text("📎 Uploading PDF ...")
+        # Send PDF to user
+        with open(pdf_path, "rb") as pdf_file:
+            await message.reply_document(document=pdf_file, filename=filename, caption="📎 Here is your instruction PDF.")
+            result= await main_passport_status(update, context,page,app_number)
+            if result:
+                await message.reply_text(result)
 
-        with open(f"Passport_status_{app_number}.pdf", "rb") as pdf_file:
-            await message.reply_document(pdf_file, caption="Your Appointment report is ready.")
-    await message.reply_text("✅ All done!")
+            with open(f"Passport_status_{app_number}.pdf", "rb") as pdf_file:
+                await message.reply_document(pdf_file, caption="Your Appointment report is ready.")
+        await message.reply_text("✅ All done!")
+    finally:
+        try:
+            # Clean up
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
+            if os.path.exists(f"Passport_status_{app_number}.pdf"):
+                os.remove(f"Passport_status_{app_number}.pdf")
+        except Exception as e:
+            print(f"Error deleting file: {e}")
     await message.reply_text("Thank you for using the Ethiopian Passport Booking Bot!")
     await message.reply_text("If you need further assistance, please contact support.")
     return await new_or_check(update, context)
@@ -889,6 +862,7 @@ async def new_or_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     message = update.message or update.callback_query.message
     chat_id = message.chat.id
     page = active_sessions[chat_id]['page']
+    await page.click('a[href="/Status"]')
     await page.click('a[href="/request-appointment"]')
     await page.wait_for_selector("label[for='defaultChecked2']", timeout=10000)
     await page.click("label[for='defaultChecked2']")
@@ -938,7 +912,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     try:
         playwright = await async_playwright().start()
         await status_msg.edit_text("⚡Launching browser...")
-        browser = await playwright.chromium.launch(headless=True)
+        browser = await playwright.chromium.launch(headless=True,timeout=60000)
         browser_context = await browser.new_context()
         page = await browser_context.new_page()
         await page.goto("https://www.ethiopianpassportservices.gov.et/request-appointment", wait_until="domcontentloaded")
@@ -1003,6 +977,7 @@ async def new_appointment(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return ConversationHandler.END
     
     try:
+        context.user_data["dropdown_step"] = 0
         page = active_sessions[chat_id]['page']
         active_sessions[chat_id]['last_active'] = datetime.now()
         
@@ -1030,10 +1005,11 @@ async def main_passport_status(update: Update, context: ContextTypes.DEFAULT_TYP
 
         # Click the search button using its text and class
         await page.click('button:has-text("Search")')
-        if await page.locator('h5.text-danger.text-center').is_visible():
+        await page.wait_for_timeout(5000)
+        if await page.locator('text=Data not Found. Please Make sure You have Paid the Request.').is_visible():
             await status_msg.edit_text("❌ Invalid Application Number. Please try again.")
-            return "❌ Invalid Application Number. Please try again."   
-        await page.wait_for_selector('a.card--link', timeout=50000)
+            return await ask_application_number(update, context)  
+        await page.wait_for_selector('a.card--link', timeout=5000)
         card = await page.query_selector('a.card--link')
         text_content = await card.inner_text()
         eye_button = await card.query_selector('div i.fa-eye')
@@ -1041,6 +1017,8 @@ async def main_passport_status(update: Update, context: ContextTypes.DEFAULT_TYP
             await eye_button.click()
         else:
             print("❌ 'Eye' icon not found.")
+            await status_msg.edit_text("❌ 'Invalid Application Number. Please try again.")
+            return await ask_application_number(update, context)
 
         await page.wait_for_timeout(3000)
         await status_msg.edit_text("Generating PDF...")
@@ -1056,7 +1034,7 @@ async def generate_official_pdf(page, application_number):
 async def ask_application_number(update: Update, context: ContextTypes.DEFAULT_TYPE)-> int:
     message = update.message or update.callback_query.message
     await message.reply_text("Please enter your Application Number to get started.")
-    return 1
+    return 111
 
 async def passport_status(update: Update, context: ContextTypes.DEFAULT_TYPE)-> int:
     message = update.message or update.callback_query.message
@@ -1065,11 +1043,20 @@ async def passport_status(update: Update, context: ContextTypes.DEFAULT_TYPE)-> 
     passport_number = message.text
     result= await main_passport_status(update, context, page, passport_number)
     if result:
-        await message.reply_text(result)
-        with open(f"Passport_status_{passport_number}.pdf", "rb") as pdf_file:
-            await message.reply_document(pdf_file, caption="Your passport status report is ready.")
-            await message.reply_text("✅ All done!")
-    return await new_or_check(update, context)
+        try:
+            await message.reply_text(result)
+            with open(f"Passport_status_{passport_number}.pdf", "rb") as pdf_file:
+                await message.reply_document(pdf_file, caption="Your passport status report is ready.")
+                await message.reply_text("✅ All done!")
+                return await new_or_check(update, context)
+        finally:
+            try:
+                # Clean up
+                if os.path.exists(f"Passport_status_{passport_number}.pdf"):
+                    os.remove(f"Passport_status_{passport_number}.pdf")
+            except Exception as e:
+                print(f"Error deleting file: {e}")
+    return 111
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     message = update.message or update.callback_query.message
@@ -1178,7 +1165,7 @@ if __name__ == "__main__":
             CallbackQueryHandler(ask_application_number, pattern="^passport_status")
         ],
         states={
-            1: [MessageHandler(filters.TEXT & ~filters.COMMAND, passport_status)],
+            111: [MessageHandler(filters.TEXT & ~filters.COMMAND, passport_status)],
             AFTER_START: [
                 CallbackQueryHandler(after_start, pattern="^new_appointment"),
                 CallbackQueryHandler(after_start, pattern="^passport_status"),
@@ -1197,6 +1184,7 @@ if __name__ == "__main__":
                     CallbackQueryHandler(new_appointment, pattern="^book_appointment")],
         states={
             # Your state handlers...
+            0: [CallbackQueryHandler(ask_region_response, pattern="^region_")],
             AFTER_START: [
                 CallbackQueryHandler(after_start, pattern="^new_appointment"),
                 CallbackQueryHandler(after_start, pattern="^passport_status"),
@@ -1235,6 +1223,10 @@ if __name__ == "__main__":
                 CallbackQueryHandler(after_start, pattern="^passport_status"),
                 CallbackQueryHandler(after_start, pattern="^help")
             ],
+            111: [MessageHandler(filters.TEXT & ~filters.COMMAND, passport_status)],
+            HELP_MENU: [CallbackQueryHandler(handle_help, pattern="^help_")],
+            MAIN_MENU: [
+                CallbackQueryHandler(main_menu_handler)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
         per_message=False,  # Keep this as False since we have mixed handlers
