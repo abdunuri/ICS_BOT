@@ -913,18 +913,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         playwright = await async_playwright().start()
         await status_msg.edit_text("⚡Launching browser...")
         browser = await playwright.chromium.launch(
-    headless=True,
-    args=[
-        '--disable-gpu',
-        '--single-process',
-        '--no-zygote',
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage'
-    ],
-    timeout=60000,
-    executable_path="/usr/bin/chromium-browser"
-)
+            headless=True,
+            args=[
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--disable-gpu',
+                '--window-size=1920,1080'
+            ],
+            executable_path="/ms-playwright/chromium-*/chrome-linux/chrome"
+        )
         browser_context = await browser.new_context(
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36',
             viewport={'width': 1920, 'height': 1080}
@@ -1174,16 +1173,15 @@ if __name__ == "__main__":
     .pool_timeout(300) \
     .build()
     # Add at application start
-    application.add_error_handler(async (update, context) => {
-    error = context.error
-    logger.error(f"Global error: {error}", exc_info=error)
-    
-    if update and update.effective_message:
-        await update.effective_message.reply_text(
-            "🔧 System encountered an error. Please /start again.\n"
-            f"Error reference: {hash(str(error))}"
-        )
-})
+    async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+            error = context.error
+            logger.error(f"Global error: {error}", exc_info=error)
+            
+            if update and update.effective_message:
+                await update.effective_message.reply_text(
+                    "🔧 System encountered an error. Please /start again.\n"
+                    f"Error reference: {hash(str(error))}"
+                )
     #Main menu handler
     main_menu = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
