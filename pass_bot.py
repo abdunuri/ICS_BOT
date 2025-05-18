@@ -912,7 +912,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         if 'playwright' in active_sessions[chat_id]:
             await active_sessions[chat_id]['playwright'].stop()
         del active_sessions[chat_id]
-    
+    #for key in list(active_sessions.keys()):
     # Setup new browser session for this user
     try:
         playwright = await async_playwright().start()
