@@ -11,14 +11,15 @@ RUN apt-get update && \
     libx11-xcb1 && \
     rm -rf /var/lib/apt/lists/*
 
+WORKDIR /app
+COPY . .
 # 2. Configure Playwright to use system Chromium
 ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin/chromium
 RUN pip install playwright && \
     pip install -r requirements.txt \
     && playwright install-deps
 
-WORKDIR /app
-COPY . .
+
 
 # 3. Force Playwright to use our system Chromium
 RUN sed -i "s|'chromium',|'chromium', executable_path='/usr/bin/chromium',|g" \
