@@ -912,7 +912,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         if 'playwright' in active_sessions[chat_id]:
             await active_sessions[chat_id]['playwright'].stop()
         del active_sessions[chat_id]
-    #for key in list(active_sessions.keys()):
+    
     # Setup new browser session for this user
     try:
         playwright = await async_playwright().start()
@@ -1079,7 +1079,7 @@ async def passport_status(update: Update, context: ContextTypes.DEFAULT_TYPE)-> 
                     os.remove(f"Passport_status_{passport_number}.pdf")
             except Exception as e:
                 print(f"Error deleting file: {e}")
-    return 111
+    return await passport_status(update, context)
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     message = update.message or update.callback_query.message
@@ -1121,9 +1121,9 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await query.answer()
     
     if query.data == "help_book":
-        await query.edit_message_text(text="To book an appointment, use the /new_appointment command.\n\nFollow the prompts to select your region, city, and other details.\n\nplease make sure to have your documents ready.")
+        await query.edit_message_text(text="To book an appointment, use the new appointment button.\n\nFollow the prompts to select your region, city, and other details.\n\nplease make sure to have your documents ready.")
     elif query.data == "help_status":
-        await query.edit_message_text(text="To check your passport status, use the /passport_status command. \n\nEnter your application number when prompted.")
+        await query.edit_message_text(text="To check your passport status, use the check status button. \n\nEnter your application number when prompted.")
     elif query.data == "help_cancel":
         await query.edit_message_text(text="To cancel your appointment, use the /cancel command. \n\nThis will clear your current session and start over.")
     elif query.data == "help_contact":
