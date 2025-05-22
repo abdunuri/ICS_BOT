@@ -10,12 +10,6 @@ from telegram.ext import (
     ContextTypes,
     filters
 )
-import logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
 import re
 import os
 from bs4 import BeautifulSoup
@@ -1165,7 +1159,11 @@ if __name__ == "__main__":
     # Add at application start
     async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             error = context.error
-            logger.error(f"Global error: {error}", exc_info=error)
+            if isinstance(error, Exception):
+                print(f"An error occurred: {error}")
+                # Log the error or send it to a specific chat
+                # For example, you can send it to the admin chat
+                # await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=str(error))
             
             if update and update.effective_message:
                 await update.effective_message.reply_text(
