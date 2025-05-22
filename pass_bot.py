@@ -23,7 +23,9 @@ from playwright.async_api import async_playwright
 from datetime import datetime,timedelta
 from collections import defaultdict
 from ethiopian_date import EthiopianDateConverter
-
+import dotenv
+dotenv.load_dotenv()
+TELEGRAM_BOT_TOKEN= os.getenv("TELEGRAM_BOT_TOKEN")
 active_sessions = defaultdict(dict)
 # Conversation states
 (
@@ -576,9 +578,6 @@ async def ask_dropdown_option(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data["dropdown_options"] = valid_options
     context.user_data["current_dropdown_selector"] = selector
 
-    # Special handling for occupation with pagination
-    if label == "Occupation":
-        return await show_occupation_page(update, context, valid_options, 0)
 
     # Create inline keyboard with specified buttons per row
     keyboard = []
@@ -1157,7 +1156,7 @@ async def cleanup_inactive_sessions():
 if __name__ == "__main__":
     # Create application
     application = Application.builder() \
-    .token("7885486896:AAGn1eU4dEjVGo7pUw6roi9k7VrA3ym1GR4") \
+    .token(TELEGRAM_BOT_TOKEN) \
     .read_timeout(300) \
     .write_timeout(300) \
     .connect_timeout(300) \
