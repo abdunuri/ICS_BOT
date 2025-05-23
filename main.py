@@ -939,6 +939,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             'last_active': datetime.now()
         }
         await status_msg.edit_text("⚡Page loaded. Please wait...")
+        await page.wait_for_selector("label[for='defaultChecked2']", timeout=30000)
+        await page.click("label[for='defaultChecked2']")
+        await page.click(".card--link")
         # Initialize user data
         context.user_data.clear()
         
@@ -953,9 +956,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             ])
         )
 
-        await page.wait_for_selector("label[for='defaultChecked2']", timeout=30000)
-        await page.click("label[for='defaultChecked2']")
-        await page.click(".card--link")
+
         return MAIN_MENU
     except Exception as e:
         await message.reply_text(f"❌ Error initializing session: {str(e)}")
@@ -1284,5 +1285,5 @@ if __name__ == "__main__":
     async def post_init(application):
         asyncio.create_task(cleanup_inactive_sessions())
 
-    application.post_init = post_init
+    application.post_init = post_init()
     application.run_polling()
