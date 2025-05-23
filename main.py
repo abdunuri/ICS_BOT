@@ -938,10 +938,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             'page': page,
             'last_active': datetime.now()
         }
-        await status_msg.edit_text("⚡Page loaded. Please wait...")
+        
         await page.wait_for_selector("label[for='defaultChecked2']", timeout=30000)
         await page.click("label[for='defaultChecked2']")
         await page.click(".card--link")
+        await status_msg.edit_text("⚡Page loaded. Please wait...")
         # Initialize user data
         context.user_data.clear()
         
