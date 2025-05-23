@@ -1285,5 +1285,5 @@ if __name__ == "__main__":
     async def post_init(application):
         asyncio.create_task(cleanup_inactive_sessions())
 
-    application.post_init = post_init()
+    application.post_init = post_init
     application.run_polling()
