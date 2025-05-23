@@ -928,7 +928,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         page.set_default_timeout(120000)
         page.set_default_navigation_timeout(120000)
         
-        await page.goto("https://www.ethiopianpassportservices.gov.et/request-appointment", wait_until="domcontentloaded")
+        await page.goto("https://www.ethiopianpassportservices.gov.et/request-appointment", wait_until="load")
         await status_msg.edit_text("⚡Browser launched. Please wait...")
         await status_msg.edit_text("⚡Loading page...")
         # Store the session
