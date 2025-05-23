@@ -929,6 +929,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         page.set_default_navigation_timeout(120000)
         
         await page.goto("https://www.ethiopianpassportservices.gov.et/request-appointment", wait_until="load")
+        print(page.url)
+        print(page.title())
         await status_msg.edit_text("⚡Browser launched. Please wait...")
         await status_msg.edit_text("⚡Loading page...")
         # Store the session
@@ -939,7 +941,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             'last_active': datetime.now()
         }
         
-        await page.wait_for_selector("label[for='defaultChecked2']", timeout=30000)
+        await page.wait_for_selector("label[for='defaultChecked2']", timeout=300000)
         await page.click("label[for='defaultChecked2']")
         await page.click(".card--link")
         await status_msg.edit_text("⚡Page loaded. Please wait...")
