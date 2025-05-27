@@ -23,7 +23,6 @@ RUN apt-get update && \
 WORKDIR /app
 COPY requirements.txt .
 COPY main.py .
-COPY ethiopian_date.py .
 
 RUN pip install --no-cache-dir -r requirements.txt && \
     python -m playwright install chromium && \
