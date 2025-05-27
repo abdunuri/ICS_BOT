@@ -1,7 +1,5 @@
-# Stage 1: Install system dependencies
-FROM python:3.10-slim AS builder
+FROM python:3.10.14-slim
 
-# Install only essential Playwright dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     wget \
@@ -22,19 +20,11 @@ RUN apt-get update && \
     libcairo2 && \
     rm -rf /var/lib/apt/lists/*
 
-# Stage 2: Build application
-FROM python:3.10-slim
-
-# Copy dependencies from builder stage
-COPY --from=builder /usr/lib /usr/lib
-COPY --from=builder /usr/bin/wget /usr/bin/wget
-
 WORKDIR /app
 COPY requirements.txt .
 COPY main.py .
 COPY ethiopian_date.py .
 
-# Install Python dependencies and Playwright
 RUN pip install --no-cache-dir -r requirements.txt && \
     python -m playwright install chromium && \
     python -m playwright install-deps && \
