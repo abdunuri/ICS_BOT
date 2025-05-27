@@ -1248,7 +1248,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                 '--disable-dev-shm-usage',
                 '--single-process',
                 '--disable-gpu',
-                '--no-zygote'
+                '--no-zygote',
+                '--disable-accelerated-2d-canvas',
+                '--disable-gpu-rasterization'
             ]
         )
 
@@ -1269,6 +1271,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         await status_msg.edit_text("⚡Browser launched. Please wait...")
         await status_msg.edit_text("⚡Loading page...")
         
+        # Check for service unavailable
+        if "service unavailable" in title.lower():
+            logger.error("[start:ServiceUnavailable] Website returned Service unavailable")
+            await status_msg.edit_text("❌ The passport service website is currently unavailable. Please try again later.")
+            logger.info("[start:CleanupOnError] Cleaning up browser session")
+            await page.close()
+            await browser.close()
+            await playwright.stop()
+            logger.info("[start:ReturnError] Returning ConversationHandler.END")
+            return ConversationHandler.END
+
         logger.info("[start:StoreSession] Storing session in active_sessions")
         active_sessions[chat_id] = {
             'playwright': playwright,
@@ -1278,13 +1291,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         }
         
         logger.info("[start:WaitForCheckbox] Waiting for defaultChecked2 checkbox")
-        await page.wait_for_selector("label[for='defaultChecked2']", timeout=300000)
-        logger.info("[start:ClickCheckbox] Clicking defaultChecked2 checkbox")
-        await page.click("label[for='defaultChecked2']")
-        logger.info("[start:ClickCard] Clicking card link")
-        await page.click(".card--link")
-        logger.info("[start:UpdateStatus] Updating status message")
-        await status_msg.edit_text("⚡Page loaded. Please wait...")
+        try:
+            await page.wait_for_selector("label[for='defaultChecked2']", timeout=60000)  # Reduced timeout
+            logger.info("[start:ClickCheckbox] Clicking defaultChecked2 checkbox")
+            await page.click("label[for='defaultChecked2']")
+            logger.info("[start:ClickCard] Clicking card link")
+            await page.click(".card--link")
+            logger.info("[start:UpdateStatus] Updating status message")
+            await status_msg.edit_text("⚡Page loaded. Please wait...")
+        except Exception as e:
+            logger.error(f"[start:CheckboxError] Error waiting for checkbox: {str(e)}")
+            await status_msg.edit_text("❌ Failed to load the appointment page. Please try again later.")
+            logger.info("[start:CleanupOnCheckboxError] Cleaning up browser session")
+            await page.close()
+            await browser.close()
+            await playwright.stop()
+            logger.info("[start:ReturnCheckboxError] Returning ConversationHandler.END")
+            return ConversationHandler.END
         
         logger.info("[start:ClearUserData] Clearing user data")
         context.user_data.clear()
@@ -1306,9 +1329,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     except Exception as e:
         logger.error(f"[start:Error] Error initializing session: {str(e)}")
         await message.reply_text(f"❌ Error initializing session: {str(e)}")
+        logger.info("[start:CleanupOnGeneralError] Cleaning up browser session")
+        if 'page' in locals():
+            await page.close()
+        if 'browser' in locals():
+            await browser.close()
+        if 'playwright' in locals():
+            await playwright.stop()
         logger.info("[start:ReturnError] Returning ConversationHandler.END")
         return ConversationHandler.END
-
+    
 async def main_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info("[main_menu_handler:Start] Entering main_menu_handler function")
     query = update.callback_query
@@ -1606,7 +1636,9 @@ if __name__ == "__main__":
         logger.info("[error_handler:Start] Entering error_handler function")
         error = context.error
         if isinstance(error, Exception):
-            logger.error(f"[error_handler:LogError] An error occurred: {error}")
+            import traceback
+            stack_trace = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+            logger.error(f"[error_handler:LogError] An error occurred: {error}\nStack trace:\n{stack_trace}")
         
         if update and update.effective_message:
             logger.info("[error_handler:SendErrorMessage] Sending error message to user")
