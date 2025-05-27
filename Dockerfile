@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.9-slim
 
 # Install Playwright dependencies
 RUN apt-get update && \
@@ -17,19 +17,14 @@ RUN apt-get update && \
     libxrandr2 \
     libgbm1 \
     libasound2 \
-    libpangocairo-1.0-0 \
-    libcairo2 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY requirements.txt .
-COPY main.py .
-COPY ethiopian_date.py .
+COPY . .
 
 # Install Python dependencies + Playwright browsers
-RUN pip install --no-cache-dir -r requirements.txt && \
-    playwright install chromium && \
-    playwright install-deps && \
-    python -c "from playwright.async_api import async_playwright; print('Playwright installed successfully')"
+RUN pip install -r requirements.txt && \
+    playwright install && \
+    playwright install-deps
 
 CMD ["python", "main.py"]
